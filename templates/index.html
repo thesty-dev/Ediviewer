@@ -421,7 +421,7 @@
 
   <!-- Upload -->
   <div class="upload-area" id="dropZone">
-    <input type="file" id="fileInput" accept=".edi,.txt,.edifact,.dat">
+    <input type="file" id="fileInput" accept=".edi,.txt,.edifact,.dat,.edi2,*">
     <div class="upload-icon">📂</div>
     <h2>EDIFACT-Datei hier ablegen</h2>
     <p>oder klicken zum Auswählen &nbsp;·&nbsp; EDI, TXT, EDIFACT</p>
@@ -524,7 +524,14 @@ async function doParse() {
       document.getElementById('pdfBtn').classList.remove('hidden');
     }
   } catch (e) {
-    showError('Netzwerkfehler: ' + e.message);
+    if (e instanceof TypeError && e.message.toLowerCase().includes('fetch')) {
+      showError(
+        'Server nicht erreichbar. Bitte stellen Sie sicher, dass der Server läuft:\n' +
+        'python3 app.py   →   dann http://localhost:5000 aufrufen'
+      );
+    } else {
+      showError('Fehler: ' + e.message);
+    }
   } finally {
     showLoading(false);
   }
@@ -730,6 +737,19 @@ document.getElementById('fileInput').addEventListener('change', () => {
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') doParse();
 });
+
+// Verbindungstest beim Laden
+(async () => {
+  try {
+    const r = await fetch('/health');
+    if (!r.ok) throw new Error();
+  } catch {
+    showError(
+      'Server nicht erreichbar. Bitte starten:\n' +
+      'python3 app.py   →   dann diese Seite über http://localhost:5000 aufrufen'
+    );
+  }
+})();
 </script>
 
 </body>

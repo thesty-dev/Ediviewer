@@ -2,7 +2,11 @@
 
 import io
 import os
+import sys
 from datetime import datetime
+
+# Ensure the directory containing app.py is on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template, request, jsonify, send_file
 from reportlab.lib import colors
@@ -32,6 +36,11 @@ def _parse_from_request(req):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
 
 
 @app.route("/parse", methods=["POST"])
