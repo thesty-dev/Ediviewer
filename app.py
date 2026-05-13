@@ -2,7 +2,11 @@
 
 import io
 import os
+import sys
 from datetime import datetime
+
+# Ensure the directory containing app.py is on the path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template, request, jsonify, send_file
 from reportlab.lib import colors
