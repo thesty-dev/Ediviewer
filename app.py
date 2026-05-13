@@ -34,6 +34,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.route("/parse", methods=["POST"])
 def parse():
     if "file" not in request.files and "text" not in request.form:
