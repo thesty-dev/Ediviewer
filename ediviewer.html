@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EDIFACT Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --surface2: #232635;
+      --border: #2e3347; --accent: #5b8dee; --accent2: #7c6af7;
+      --green: #2dd4a0; --yellow: #f0c040; --red: #f05a5a;
+      --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+    }
+    header .logo {
+      font-size: 20px; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header .subtitle { color: var(--text3); font-size: 12px; margin-top: 2px; }
+
+    main { flex: 1; padding: 20px; max-width: 960px; width: 100%; margin: 0 auto; }
+
+    .upload-area {
+      background: var(--surface); border: 2px dashed var(--border);
+      border-radius: var(--radius); padding: 32px 24px; text-align: center;
+      cursor: pointer; transition: border-color .2s, background .2s;
+      margin-bottom: 16px; position: relative;
+    }
+    .upload-area.drag-over { border-color: var(--accent); background: rgba(91,141,238,.07); }
+    .upload-area input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 40px; margin-bottom: 10px; }
+    .upload-area h2 { font-size: 16px; margin-bottom: 4px; }
+    .upload-area p { color: var(--text2); font-size: 13px; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      color: var(--text3); font-size: 12px; margin-bottom: 16px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    textarea {
+      width: 100%; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      font-family: 'Fira Code', monospace; font-size: 12px;
+      padding: 12px; resize: vertical; min-height: 120px; outline: none;
+      transition: border-color .2s; margin-bottom: 12px;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--text3); }
+
+    .btn-row { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+
+    button {
+      padding: 10px 20px; border-radius: 8px; border: none;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    button:active { transform: scale(.97); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+    .btn-pdf { background: linear-gradient(135deg, var(--green), var(--accent)); color: #fff; }
+    .btn-secondary { background: var(--surface2); color: var(--text2); border: 1px solid var(--border); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .hidden { display: none !important; }
+
+    .error-box {
+      background: rgba(240,90,90,.12); border: 1px solid rgba(240,90,90,.3);
+      border-radius: var(--radius); padding: 14px 18px; color: var(--red);
+      font-size: 13px; margin-bottom: 16px; white-space: pre-line;
+    }
+
+    #results { display: none; }
+
+    .stats-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .stat-chip {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 20px; padding: 5px 12px; font-size: 12px; color: var(--text2);
+    }
+    .stat-chip strong { color: var(--text); }
+
+    .filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .filter-row input {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 12px; padding: 7px 12px; outline: none;
+      flex: 1; min-width: 160px; transition: border-color .2s;
+    }
+    .filter-row input:focus { border-color: var(--accent); }
+    .toggle-all { font-size: 11px; padding: 6px 12px; }
+
+    .segments-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .segment-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; transition: border-color .15s;
+    }
+    .segment-card:hover { border-color: var(--accent); }
+
+    .segment-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; cursor: pointer; user-select: none;
+    }
+    .seg-index { color: var(--text3); font-size: 10px; min-width: 24px; font-family: monospace; }
+    .seg-tag {
+      font-family: monospace; font-size: 13px; font-weight: 700;
+      min-width: 42px; padding: 2px 7px; border-radius: 4px; text-align: center;
+    }
+    .tag-service { background: rgba(240,192,64,.15); color: var(--yellow); }
+    .tag-bgm     { background: rgba(45,212,160,.15); color: var(--green); }
+    .tag-dtm     { background: rgba(91,141,238,.15); color: var(--accent); }
+    .tag-nad     { background: rgba(124,106,247,.15); color: var(--accent2); }
+    .tag-default { background: var(--surface2); color: var(--text3); }
+
+    .seg-name  { color: var(--text2); font-size: 12px; flex: 1; }
+    .seg-qual  { font-size: 11px; color: var(--text3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seg-arrow { color: var(--text3); font-size: 11px; transition: transform .2s; }
+    .segment-card.open .seg-arrow { transform: rotate(90deg); }
+
+    .segment-body { display: none; padding: 0 14px 14px; border-top: 1px solid var(--border); }
+    .segment-card.open .segment-body { display: block; }
+
+    .raw-line {
+      font-family: monospace; font-size: 11px; color: var(--text3);
+      background: var(--bg); border-radius: 5px; padding: 6px 10px;
+      margin: 10px 0; word-break: break-all;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      text-align: left; color: var(--text3); font-weight: 600;
+      font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+      padding: 5px 8px; border-bottom: 1px solid var(--border);
+    }
+    tbody tr:hover { background: rgba(255,255,255,.02); }
+    td { padding: 5px 8px; border-bottom: 1px solid rgba(46,51,71,.5); vertical-align: top; }
+
+    .elem-pos { color: var(--text3); font-family: monospace; font-size: 10px; }
+    .comp-list { display: flex; flex-wrap: wrap; gap: 5px; }
+    .comp-value {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 3px; padding: 1px 7px; font-family: monospace;
+      font-size: 11px; color: var(--green);
+    }
+    .comp-idx { font-size: 9px; color: var(--text3); margin-right: 2px; }
+
+    /* ── Print / PDF styles ─────────────────────────────────────── */
+    @media print {
+      :root { --bg: #fff; --surface: #f8f9fa; --surface2: #f0f1f3; --border: #d1d5db;
+              --text: #111; --text2: #555; --text3: #888; --green: #16a34a;
+              --accent: #2563eb; --accent2: #7c3aed; --yellow: #b45309; --red: #dc2626; }
+      body { background: #fff; font-size: 11px; }
+      header { border-bottom: 2px solid #333; }
+      header .logo { -webkit-text-fill-color: #2563eb; background: none; color: #2563eb; }
+      .upload-area, .divider, textarea, .btn-row, .filter-row, #errorBox { display: none !important; }
+      #results { display: block !important; }
+      .segment-card { border: 1px solid #ccc; break-inside: avoid; margin-bottom: 6px; }
+      .segment-body { display: block !important; }
+      .seg-arrow { display: none; }
+      .stat-chip { background: #f0f1f3; border: 1px solid #ccc; }
+      .comp-value { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+      button, .stats-bar { display: none; }
+      .print-stats { display: block !important; }
+    }
+    .print-stats { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">EDIFACT Viewer</div>
+  <div class="subtitle">Läuft komplett im Browser · keine Installation nötig</div>
+</header>
+
+<main>
+
+  <div class="upload-area" id="dropZone">
+    <input type="file" id="fileInput">
+    <div class="upload-icon">📂</div>
+    <h2>EDIFACT-Datei auswählen</h2>
+    <p>Tippen zum Auswählen · oder hierher ziehen</p>
+  </div>
+
+  <div class="divider">oder Text direkt eingeben</div>
+
+  <textarea id="textInput" placeholder="UNA:+.? '&#10;UNB+UNOC:3+SENDER:14+..."></textarea>
+
+  <div class="btn-row">
+    <button class="btn-primary" onclick="doParse()">Analysieren</button>
+    <button class="btn-pdf hidden" id="pdfBtn" onclick="savePdf()">Als PDF speichern</button>
+    <button class="btn-secondary" onclick="loadExample()">Beispiel</button>
+    <button class="btn-secondary" onclick="clearAll()">Leeren</button>
+  </div>
+
+  <div class="error-box hidden" id="errorBox"></div>
+
+  <div id="results">
+    <div class="stats-bar" id="statsBar"></div>
+    <div class="filter-row">
+      <input type="text" id="filterInput" placeholder="Segmente filtern…" oninput="filterSegments()">
+      <button class="btn-secondary toggle-all" onclick="toggleAll(true)">Alle öffnen</button>
+      <button class="btn-secondary toggle-all" onclick="toggleAll(false)">Alle schließen</button>
+    </div>
+    <div class="segments-list" id="segmentsList"></div>
+  </div>
+
+</main>
+
+<script>
+// ── EDIFACT Segment-Namen ──────────────────────────────────────────────────
+const SEGMENT_NAMES = {
+  UNA:"Service String Advice", UNB:"Interchange Header", UNZ:"Interchange Trailer",
+  UNG:"Functional Group Header", UNE:"Functional Group Trailer",
+  UNH:"Message Header", UNT:"Message Trailer",
+  BGM:"Beginning of Message", DTM:"Date/Time/Period",
+  NAD:"Name and Address", LIN:"Line Item", QTY:"Quantity",
+  MOA:"Monetary Amount", PRI:"Price Details", RFF:"Reference",
+  TAX:"Duty/Tax/Fee Details", ALC:"Allowance or Charge", PAC:"Package",
+  PIA:"Additional Product ID", IMD:"Item Description",
+  MEA:"Measurements", ALI:"Additional Information",
+  FTX:"Free Text", CUX:"Currencies", PAT:"Payment Terms Basis",
+  TDT:"Details of Transport", TOD:"Terms of Delivery",
+  LOC:"Place/Location Identification", CNT:"Control Total",
+  DOC:"Document/Message Details", CTA:"Contact Information",
+  COM:"Communication Contact", GIN:"Goods Identity Number",
+  EQD:"Equipment Details", HAN:"Handling Instructions",
+  SCC:"Scheduling Conditions", GIS:"General Indicator",
+  BUS:"Business Function", ATT:"Attribute", SEQ:"Sequence Details",
+  STS:"Status", ERC:"Application Error Information",
+};
+
+const QUALIFIERS = {
+  DTM: { "2":"Lieferdatum (geplant)","7":"Gültigkeitsdatum","11":"Versanddatum",
+    "35":"Lieferdatum (tatsächlich)","36":"Ablaufdatum","63":"Letztes Lieferdatum",
+    "131":"Steuerpunktdatum","137":"Dokumentdatum","140":"Zahlungsfälligkeitsdatum",
+    "157":"Ablaufdatum","178":"Berechnungsdatum","179":"Zahlungsdatum",
+    "191":"Rechnungsdatum","200":"Abholungsdatum","203":"Bestelldatum",
+  },
+  NAD: { BY:"Käufer",SE:"Verkäufer",BS:"Rechnung+Lieferung",DP:"Lieferpartei",
+    SU:"Lieferant",MS:"Nachrichtensender",MR:"Nachrichtenempfänger",
+    ST:"Lieferadresse",CN:"Empfänger",CA:"Spediteur",IV:"Rechnungsempfänger",
+    II:"Rechnungssteller",BT:"Rechnungsadresse",
+  },
+  QTY: { "1":"Einzelne Menge","6":"Berechnete Menge","11":"Versandmenge",
+    "12":"Empfangene Menge","21":"Bestellmenge","47":"Rechnungsmenge (brutto)",
+    "59":"Verbrauchereinheiten",
+  },
+  MOA: { "9":"Betrag","23":"Steuerbarer Betrag","25":"Zahlbarer Betrag",
+    "31":"Netto-Zeilenbetrag","35":"Rechnungsbetrag","60":"Steuerbetrag",
+    "77":"Gesamt-Rechnungsbetrag","86":"Gesamt-Steuerbetrag","125":"Zahlungsbetrag",
+    "259":"Mehrwertsteuerbetrag","263":"Gesamtrechnungsbetrag",
+  },
+};
+
+// ── Parser ─────────────────────────────────────────────────────────────────
+function splitWithRelease(text, sep, rel) {
+  const parts = [];
+  let cur = '';
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === rel && i + 1 < text.length) {
+      cur += text[i] + text[i + 1];
+      i++;
+    } else if (text[i] === sep) {
+      parts.push(cur); cur = '';
+    } else {
+      cur += text[i];
+    }
+  }
+  parts.push(cur);
+  return parts;
+}
+
+function unescape(val, rel) {
+  if (!rel) return val;
+  let out = '';
+  for (let i = 0; i < val.length; i++) {
+    if (val[i] === rel && i + 1 < val.length) { out += val[i + 1]; i++; }
+    else out += val[i];
+  }
+  return out;
+}
+
+function parseEdifact(content) {
+  content = content.trim();
+  let compSep = ':', dataSep = '+', decimal = '.', release = '?', segTerm = "'";
+
+  if (content.startsWith('UNA')) {
+    const una = content.slice(3, 9);
+    if (una.length >= 6) {
+      [compSep, dataSep, decimal, release, , segTerm] = una.split('');
+    }
+    content = content.slice(9).trimStart();
+  }
+
+  const rawSegs = splitWithRelease(content, segTerm, release);
+  const segments = [];
+
+  for (const raw of rawSegs) {
+    const r = raw.trim();
+    if (!r) continue;
+
+    const deRaw = splitWithRelease(r, dataSep, release);
+    const tag = deRaw[0].trim();
+    const elements = deRaw.slice(1).map(e =>
+      splitWithRelease(e, compSep, release).map(c => unescape(c, release))
+    );
+
+    const qualifier = elements[0]?.[0] ?? '';
+    const qualDesc  = QUALIFIERS[tag]?.[qualifier] ?? '';
+
+    segments.push({
+      tag, name: SEGMENT_NAMES[tag] ?? 'Unbekanntes Segment',
+      qualifier, qualDesc, elements, raw: r
+    });
+  }
+
+  return {
+    separators: { component: compSep, data: dataSep, decimal, release, segment: segTerm },
+    segments,
+    count: segments.length
+  };
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+const SERVICE = new Set(['UNA','UNB','UNZ','UNG','UNE','UNH','UNT']);
+
+function tagClass(tag) {
+  if (SERVICE.has(tag)) return 'tag-service';
+  if (tag === 'BGM') return 'tag-bgm';
+  if (tag === 'DTM') return 'tag-dtm';
+  if (tag === 'NAD') return 'tag-nad';
+  return 'tag-default';
+}
+
+function doParse() {
+  hideError();
+  const text = document.getElementById('textInput').value.trim();
+  const file = document.getElementById('fileInput').files[0];
+
+  if (!text && !file) { showError('Bitte eine Datei auswählen oder Text eingeben.'); return; }
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => render(parseEdifact(e.target.result));
+    reader.onerror = () => showError('Datei konnte nicht gelesen werden.');
+    reader.readAsText(file, 'utf-8');
+  } else {
+    render(parseEdifact(text));
+  }
+}
+
+function render(data) {
+  const seps = data.separators;
+  document.getElementById('statsBar').innerHTML =
+    `<div class="stat-chip">Segmente: <strong>${data.count}</strong></div>
+     <div class="stat-chip">Segment-Trenner: <strong><code>${esc(seps.segment)}</code></strong></div>
+     <div class="stat-chip">Daten-Trenner: <strong><code>${esc(seps.data)}</code></strong></div>
+     <div class="stat-chip">Komponenten-Trenner: <strong><code>${esc(seps.component)}</code></strong></div>`;
+
+  const list = document.getElementById('segmentsList');
+  list.innerHTML = '';
+
+  data.segments.forEach((seg, i) => {
+    const card = document.createElement('div');
+    card.className = 'segment-card';
+    card.dataset.search = `${seg.tag} ${seg.name} ${seg.raw}`.toLowerCase();
+
+    const qualHtml = seg.qualDesc ? ` — <em>${esc(seg.qualDesc)}</em>` : '';
+
+    card.innerHTML = `
+      <div class="segment-header" onclick="this.parentElement.classList.toggle('open')">
+        <span class="seg-index">#${i+1}</span>
+        <span class="seg-tag ${tagClass(seg.tag)}">${esc(seg.tag)}</span>
+        <span class="seg-name">${esc(seg.name)}</span>
+        <span class="seg-qual">${qualHtml}</span>
+        <span class="seg-arrow">▶</span>
+      </div>
+      <div class="segment-body">
+        <div class="raw-line">RAW: ${esc(seg.raw)}</div>
+        ${buildTable(seg.elements)}
+      </div>`;
+
+    list.appendChild(card);
+  });
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('pdfBtn').classList.remove('hidden');
+}
+
+function buildTable(elements) {
+  const rows = elements.map((comps, ei) => {
+    const chips = comps.map((c, ci) =>
+      c.trim() ? `<span class="comp-value"><span class="comp-idx">${ci+1}:</span>${esc(c)}</span>` : ''
+    ).join('');
+    if (!chips) return '';
+    return `<tr><td class="elem-pos">DE${String(ei+1).padStart(2,'0')}</td><td><div class="comp-list">${chips}</div></td></tr>`;
+  }).join('');
+
+  return rows
+    ? `<table><thead><tr><th>Pos.</th><th>Werte</th></tr></thead><tbody>${rows}</tbody></table>`
+    : '';
+}
+
+function savePdf() {
+  toggleAll(true);
+  window.print();
+}
+
+function filterSegments() {
+  const q = document.getElementById('filterInput').value.toLowerCase();
+  document.querySelectorAll('.segment-card').forEach(c => {
+    c.style.display = (!q || c.dataset.search.includes(q)) ? '' : 'none';
+  });
+}
+
+function toggleAll(open) {
+  document.querySelectorAll('.segment-card').forEach(c => {
+    if (c.style.display !== 'none') c.classList.toggle('open', open);
+  });
+}
+
+function loadExample() {
+  document.getElementById('textInput').value =
+`UNA:+.? '
+UNB+UNOC:3+4012345000000:14+4012345000001:14+200101:1200+1'
+UNH+1+INVOIC:D:96A:UN'
+BGM+380+INV-2024-001+9'
+DTM+137:20240115:102'
+DTM+35:20240120:102'
+NAD+BY+4000001000000::9++MUSTERMANN GMBH+MUSTERSTRASSE 1+MUSTERSTADT++12345+DE'
+NAD+SE+4000002000000::9++LIEFERANT AG+LIEFERWEG 5+LIEFERSTADT++54321+DE'
+CUX+2:EUR:4'
+LIN+1++4012345001234:EN'
+IMD+F++:::Produkt Alpha'
+QTY+47:10:PCE'
+MOA+203:250.00'
+PRI+INV:25.00:NTP:1:PCE'
+TAX+7+VAT+++:::19+S'
+LIN+2++4012345005678:EN'
+IMD+F++:::Produkt Beta'
+QTY+47:5:PCE'
+MOA+203:150.00'
+PRI+INV:30.00:NTP:1:PCE'
+MOA+77:400.00'
+MOA+86:76.00'
+CNT+2:2'
+UNT+23+1'
+UNZ+1+1'`;
+  document.getElementById('fileInput').value = '';
+}
+
+function clearAll() {
+  document.getElementById('textInput').value = '';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('pdfBtn').classList.add('hidden');
+  hideError();
+}
+
+function showError(msg) {
+  const b = document.getElementById('errorBox');
+  b.textContent = msg; b.classList.remove('hidden');
+}
+function hideError() { document.getElementById('errorBox').classList.add('hidden'); }
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Drag & Drop
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const dt = new DataTransfer(); dt.items.add(file);
+  document.getElementById('fileInput').files = dt.files;
+  doParse();
+});
+
+document.getElementById('fileInput').addEventListener('change', () => {
+  if (document.getElementById('fileInput').files[0]) doParse();
+});
+</script>
+
+</body>
+</html>
