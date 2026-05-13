@@ -43,6 +43,13 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.route("/download")
+def download_standalone():
+    """Serve the standalone HTML file as a download."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ediviewer.html")
+    return send_file(path, as_attachment=True, download_name="ediviewer.html")
+
+
 @app.route("/parse", methods=["POST"])
 def parse():
     if "file" not in request.files and "text" not in request.form:
