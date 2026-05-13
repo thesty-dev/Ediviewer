@@ -172,6 +172,11 @@
 
     button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .btn-pdf {
+      background: linear-gradient(135deg, #2dd4a0, #5b8dee);
+      color: #fff;
+    }
+
     /* Results */
     #results { display: none; }
 
@@ -428,6 +433,7 @@
 
   <div class="btn-row">
     <button class="btn-primary" id="parseBtn" onclick="doParse()">Analysieren</button>
+    <button class="btn-pdf hidden" id="pdfBtn" onclick="downloadPdf()">Als PDF herunterladen</button>
     <button class="btn-secondary" onclick="loadExample()">Beispiel laden</button>
     <button class="btn-secondary" onclick="clearAll()">Leeren</button>
   </div>
@@ -515,6 +521,7 @@ async function doParse() {
     } else {
       parsedData = data;
       renderResults(data);
+      document.getElementById('pdfBtn').classList.remove('hidden');
     }
   } catch (e) {
     showError('Netzwerkfehler: ' + e.message);
@@ -632,10 +639,49 @@ function loadExample() {
   document.getElementById('fileInput').value = '';
 }
 
+async function downloadPdf() {
+  const btn = document.getElementById('pdfBtn');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Wird erstellt…';
+
+  try {
+    const fd = new FormData();
+    const file = document.getElementById('fileInput').files[0];
+    if (file) {
+      fd.append('file', file);
+    } else {
+      fd.append('text', document.getElementById('textInput').value);
+    }
+
+    const res = await fetch('/export/pdf', { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json();
+      showError(err.error || 'PDF-Export fehlgeschlagen');
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1]
+      || `edifact_${Date.now()}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showError('Netzwerkfehler: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
 function clearAll() {
   document.getElementById('textInput').value = '';
   document.getElementById('fileInput').value = '';
   document.getElementById('results').style.display = 'none';
+  document.getElementById('pdfBtn').classList.add('hidden');
   hideError();
 }
 
